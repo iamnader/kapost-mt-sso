@@ -86,12 +86,16 @@ sub script
 	var s = document.getElementsByTagName('script')[0]; 
 	s.parentNode.insertBefore(scr, s);
 		
-	var oldonload = window.onload;
-	window.onload = function()
+	window.onload = (function()
 	{
-		if(oldonload && typeof oldonload == 'function') oldonload();
-		try { KapostSSO.instance('$token','$domain'); } catch(err) {}
-	}
+		var oldonload = window.onload;
+		return function()
+		{	
+			if(oldonload && typeof oldonload == 'function') oldonload.apply(this, arguments);
+			setTimeout(function(){try{KapostSSO.instance('$token','$domain');}catch(err){}},100);
+		};
+	})();
+	
 })();
 </script>
 EOF
