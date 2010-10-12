@@ -36,7 +36,7 @@ sub token
 	my $iv = "Kapost is cool?!";
 	foreach my $i (0 .. 15) 
 	{
-    	substr($iv,$i,1) ^= substr($iv,$i,1);
+    	substr($data,$i,1) ^= substr($iv,$i,1);
   	}
 
 	my $cipher = Crypt::CBC->new(
