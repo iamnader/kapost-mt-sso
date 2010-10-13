@@ -102,7 +102,9 @@ sub	sso
 									$user->id,
 									$user->email,
 									$user->nickname,
-									$userpic ),
+									$userpic,
+									0,
+									$domain )
 	};
 	
 	new JSON()->encode($params);
