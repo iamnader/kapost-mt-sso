@@ -1,9 +1,8 @@
 package KapostSSO;
 use strict;
-use Crypt::CBC;
-use Digest::SHA;
+use HTTP::Request::Common qw(POST);
 use URI::Escape;
-use MIME::Base64;
+use LWP::UserAgent;
 use JSON;
 
 #
@@ -12,44 +11,55 @@ use JSON;
 #
 sub token
 {
-	my($subdomain, $key, $guid, $email, $name, $avatar, $bio) = @_;	
+	my($subdomain, $key, $guid, $email, $name, $avatar, $bio, $domain) = @_;	
 	if(!$subdomain or !$key or !$guid or !$email)
 	{
 		return 0;
 	}
 	
-	my $options = 
+	if(!$domain)
 	{
-		"external_user_id"	=> $guid,
-		"email"				=> $email,
-		"name"				=> $name,
-		"avatar_url"		=> $avatar,
-		"bio"				=> $bio
+		$domain = "$subdomain.kapost.com";
+	}
+	
+	my $token = 0;
+	
+	my $data =
+	{
+		'subdomain'=>$subdomain,
+		'key'=>$key,
+		'guid'=>$guid,
+		'email'=>$email
 	};
-
-	my $sha = new Digest::SHA;
-	$sha->add("$subdomain:$key");
-	my $kp = substr($sha->hexdigest,0,32);
+			
+	if($name) 
+	{		
+		$data->{'name'} = $name;
+	}
 	
-	my $data = new JSON()->encode($options);
-	
-	my $iv = "Kapost is cool?!";
-	foreach my $i (0 .. 15) 
+	if($avatar)
 	{
-    	substr($data,$i,1) ^= substr($iv,$i,1);
-  	}
-
-	my $cipher = Crypt::CBC->new(
-	                  -key			=> pack("H*", $kp),
-    	              -cipher		=> 'Rijndael',
-    	              -iv			=> $iv,
-    	              -literal_key	=> 1,
-    	              -keysize		=> 16,
-    	              -header		=> 'none');
-                  
-	my $cdata = encode_base64($cipher->encrypt($data));
-	$cdata =~ s/\n//g; # replace newlines
-  	return uri_escape($cdata);
+		$data->{'avatar'} = $avatar;
+	}
+	
+	if($bio)
+	{
+		$data->{'bio'} 	= $bio;
+	}
+		
+	my $req = LWP::UserAgent->new;
+	my $res = $req->request(POST "http://$domain/sso/token.json",$data);
+	
+	if($res and $res->is_success)
+	{
+		$res = new JSON()->decode($res->content);
+		if($res)
+		{
+			$token = $res->{'token'};
+		}
+	}
+		
+	return $token;
 }
 
 #
@@ -59,21 +69,24 @@ sub token
 sub script 
 {
 	my ($o) = @_;
+
+	my $subdomain = $o->{'subdomain'};
+	my $domain = $o->{'domain'};	
+	if(!$domain)
+	{
+		$domain = "$subdomain.kapost.com";	
+	}
+
 	my $token = token(	$o->{'subdomain'}, 
 						$o->{'key'}, 
 						$o->{'guid'}, 
 						$o->{'email'}, 
 						$o->{'name'}, 
 						$o->{'avatar'}, 
-						$o->{'bio'}) or return 0;
+						$o->{'bio'},
+						$domain) or return 0;
 	
-	my $subdomain = $o->{'subdomain'};
-	my $domain = $o->{'domain'};
-	
-	if(!$domain)
-	{
-		$domain = "$subdomain.kapost.com";	
-	}
+	$token = uri_escape($token);
 	
 	my $script = <<EOF;
 <script type="text/javascript">
